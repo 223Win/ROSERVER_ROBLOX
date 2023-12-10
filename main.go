@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/valyala/fasthttp"
