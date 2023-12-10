@@ -2,11 +2,12 @@ package main
 
 import (
 	"log"
-	"time"
 	"os"
-	"github.com/valyala/fasthttp"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/valyala/fasthttp"
 )
 
 var timeout, _ = strconv.Atoi(os.Getenv("TIMEOUT"))
@@ -17,13 +18,13 @@ var client *fasthttp.Client
 
 func main() {
 	h := requestHandler
-	
+
 	client = &fasthttp.Client{
-		ReadTimeout: time.Duration(timeout) * time.Second,
+		ReadTimeout:        time.Duration(timeout) * time.Second,
 		MaxIdleConnDuration: 60 * time.Second,
 	}
 
-	if err := fasthttp.ListenAndServe(":" + port, h); err != nil {
+	if err := fasthttp.ListenAndServe(":"+port, h); err != nil {
 		log.Fatalf("Error in ListenAndServe: %s", err)
 	}
 }
@@ -37,25 +38,26 @@ func requestHandler(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	if len(strings.SplitN(string(ctx.Request.Header.RequestURI())[1:], "/", 2)) < 2 {
+	urlParam := string(ctx.QueryArgs().Peek("url"))
+	if urlParam == "" {
 		ctx.SetStatusCode(400)
-		ctx.SetBody([]byte("URL format invalid."))
+		ctx.SetBody([]byte("URL parameter missing."))
 		return
 	}
 
-	response := makeRequest(ctx, 1)
+	response := makeRequest(ctx, urlParam, 1)
 
 	defer fasthttp.ReleaseResponse(response)
 
 	body := response.Body()
 	ctx.SetBody(body)
 	ctx.SetStatusCode(response.StatusCode())
-	response.Header.VisitAll(func (key, value []byte) {
+	response.Header.VisitAll(func(key, value []byte) {
 		ctx.Response.Header.Set(string(key), string(value))
 	})
 }
 
-func makeRequest(ctx *fasthttp.RequestCtx, attempt int) *fasthttp.Response {
+func makeRequest(ctx *fasthttp.RequestCtx, urlParam string, attempt int) *fasthttp.Response {
 	if attempt > retries {
 		resp := fasthttp.AcquireResponse()
 		resp.SetBody([]byte("Proxy failed to connect. Please try again."))
@@ -67,10 +69,10 @@ func makeRequest(ctx *fasthttp.RequestCtx, attempt int) *fasthttp.Response {
 	req := fasthttp.AcquireRequest()
 	defer fasthttp.ReleaseRequest(req)
 	req.Header.SetMethod(string(ctx.Method()))
-	url := strings.SplitN(string(ctx.Request.Header.RequestURI())[1:], "/", 2)
-	req.SetRequestURI("https://" + url[0] + ".roblox.com/" + url[1])
+
+	req.SetRequestURI("https://" + urlParam)
 	req.SetBody(ctx.Request.Body())
-	ctx.Request.Header.VisitAll(func (key, value []byte) {
+	ctx.Request.Header.VisitAll(func(key, value []byte) {
 		req.Header.Set(string(key), string(value))
 	})
 	req.Header.Set("User-Agent", "RoProxy")
@@ -79,10 +81,10 @@ func makeRequest(ctx *fasthttp.RequestCtx, attempt int) *fasthttp.Response {
 
 	err := client.Do(req, resp)
 
-    if err != nil {
+	if err != nil {
 		fasthttp.ReleaseResponse(resp)
-        return makeRequest(ctx, attempt + 1)
-    } else {
+		return makeRequest(ctx, urlParam, attempt+1)
+	} else {
 		return resp
 	}
 }
