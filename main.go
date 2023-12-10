@@ -57,6 +57,8 @@ func requestHandler(ctx *fasthttp.RequestCtx) {
 }
 
 func makeRequest(ctx *fasthttp.RequestCtx, urlParam string, attempt int) *fasthttp.Response {
+	fmt.Printf("Attempting to connect to URL: %s\n", urlParam) // Add this line
+
 	if attempt > retries {
 		resp := fasthttp.AcquireResponse()
 		resp.SetBody([]byte("Proxy failed to connect. Please try again."))
